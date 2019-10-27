@@ -43,15 +43,9 @@ def train_supernet():
     lookup_table = LookUpTable(calulate_latency=CONFIG_SUPERNET['lookup_table']['create_from_scratch'])
     
     #### DataLoading
-    train_w_loader, train_thetas_loader = dataloader.create_loaders(load_random_triplets=False, batchsize=CONFIG_SUPERNET['dataloading']['batch_size'])
-    _, test_loader = dataloader.create_loaders(load_random_triplets=False, batchsize=CONFIG_SUPERNET['dataloading']['batch_size'])
-
-    # train_w_loader, train_thetas_loader = get_loaders(CONFIG_SUPERNET['dataloading']['w_share_in_train'],
-    #                                                   CONFIG_SUPERNET['dataloading']['batch_size'],
-    #                                                   CONFIG_SUPERNET['dataloading']['path_to_save_data'],
-    #                                                   logger)
-    # test_loader = get_test_loader(CONFIG_SUPERNET['dataloading']['batch_size'],
-    #                               CONFIG_SUPERNET['dataloading']['path_to_save_data'])
+    train_w_loader = dataloader.create_loaders(load_random_triplets=False, batchsize=CONFIG_SUPERNET['dataloading']['batch_size'], n_triplets = 500000)
+    train_thetas_loader= dataloader.create_loaders(load_random_triplets=False, batchsize=CONFIG_SUPERNET['dataloading']['batch_size'], n_triplets = 500000)
+    test_loader = dataloader.create_loaders(load_random_triplets=False, batchsize=CONFIG_SUPERNET['dataloading']['batch_size'], n_triplets = 50000)
 
     #### Model
     model = FBNet_Stochastic_SuperNet(lookup_table).cuda()
@@ -91,7 +85,7 @@ def sample_architecture_from_the_supernet(unique_name_of_arch, hardsampling=True
     logger = get_logger(CONFIG_SUPERNET['logging']['path_to_log_file'])
     
     lookup_table = LookUpTable()
-    model = FBNet_Stochastic_SuperNet(lookup_table, cnt_classes=10).cuda()
+    model = FBNet_Stochastic_SuperNet(lookup_table).cuda()
     model = nn.DataParallel(model)
 
     load(model, CONFIG_SUPERNET['train_settings']['path_to_save_model'])

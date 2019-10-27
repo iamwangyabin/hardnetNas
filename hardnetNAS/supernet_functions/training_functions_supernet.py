@@ -4,6 +4,8 @@ import time
 from general_functions.utils import AverageMeter, save, accuracy
 from supernet_functions.config_for_supernet import CONFIG_SUPERNET
 
+import dataloader
+
 
 class TrainerSupernet:
     def __init__(self, criterion, w_optimizer, theta_optimizer, w_scheduler, logger, writer):
@@ -59,6 +61,16 @@ class TrainerSupernet:
 
             self.temperature = self.temperature * self.exp_anneal_rate
 
+            train_w_loader = dataloader.create_loaders(load_random_triplets=False,
+                                                       batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
+                                                       n_triplets=500000)
+            train_thetas_loader = dataloader.create_loaders(load_random_triplets=False,
+                                                            batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
+                                                            n_triplets=500000)
+            test_loader = dataloader.create_loaders(load_random_triplets=False,
+                                                    batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
+                                                    n_triplets=50000)
+
     def _training_step(self, model, loader, optimizer, epoch, info_for_logger=""):
         model = model.train()
         start_time = time.time()
@@ -89,7 +101,7 @@ class TrainerSupernet:
 
         with torch.no_grad():
             for step, (X, Y) in enumerate(loader):
-                X, Y = X.cuda(), y.cuda()
+                X, Y = X.cuda(), Y.cuda()
                 N = X.shape[0]
 
                 latency_to_accumulate = torch.Tensor([[0.0]]).cuda()

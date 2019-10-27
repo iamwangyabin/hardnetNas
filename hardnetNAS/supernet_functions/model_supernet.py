@@ -35,7 +35,7 @@ class FBNet_Stochastic_SuperNet(nn.Module):
         super(FBNet_Stochastic_SuperNet, self).__init__()
         
         # self.first identical to 'add_first' in the fbnet_building_blocks/fbnet_builder.py
-        self.first = ConvBNRelu(input_depth=3, output_depth=32, kernel=3, stride=1,
+        self.first = ConvBNRelu(input_depth=1, output_depth=32, kernel=3, stride=1,
                                 pad=1, no_bias=1, use_relu="relu", bn_type="bn")
         self.stages_to_search = nn.ModuleList([MixedOperation(
                                                    lookup_table.layers_parameters[layer_id],
@@ -64,13 +64,14 @@ class SupernetLoss(nn.Module):
         self.alpha = CONFIG_SUPERNET['loss']['alpha']
         self.beta = CONFIG_SUPERNET['loss']['beta']
         self.weight_criterion = nn.CrossEntropyLoss()
-        self.weight_criterion_hardnet = hardnetNAS.Losses.loss_HardNet()
+        self.weight_criterion_hardnet = Losses.loss_HardNet
 
     def forward(self, outs, targets, latency, losses_ce, losses_lat, N):
         
         # ce = self.weight_criterion(outs, targets)
         ce = self.weight_criterion_hardnet(outs, targets)
-
+        #import pdb
+        #pdb.set_trace()
         lat = torch.log(latency ** self.beta)
         
         losses_ce.update(ce.item(), N)

@@ -41,7 +41,7 @@ SEARCH_SPACE = OrderedDict([
 ])
 
 CANDIDATE_BLOCKS2 = ["ShuffleV2_A", "ShuffleV2_B", "MobileV3_RE",
-                    "MobileV3_Hswish", "conv_k3", "Skip"]
+                    "MobileV3_Hswish", "Skip"]
 # "ShuffleV2_A",
 SEARCH_SPACE2 = OrderedDict([
     #### table 1. input shapes of 6 searched layers (considering with strides)
@@ -123,10 +123,9 @@ class LookUpTable:
         
         for layer_id in range(self.cnt_layers):
             for op_name in operations:
-                op = operations[op_name](*layers_parameters[layer_id])
-                input_sample = torch.randn((LATENCY_BATCH_SIZE, *layers_input_shapes[layer_id]))
-                # import pdb
-                # pdb.set_trace()
+                op = operations[op_name](*layers_parameters[layer_id]).cuda()
+                input_sample = torch.randn((LATENCY_BATCH_SIZE, *layers_input_shapes[layer_id])).cuda()
+
                 globals()['op'], globals()['input_sample'] = op, input_sample
                 total_time = timeit.timeit('output = op(input_sample)', setup="gc.enable()", \
                                            globals=globals(), number=cnt_of_runs)

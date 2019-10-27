@@ -16,7 +16,7 @@ class TripletPhotoTour(dset.PhotoTour):
     different class.
     """
 
-    def __init__(self, train=True, transform=None, batch_size=None, load_random_triplets=False, n_triplets=5000,
+    def __init__(self, train=True, transform=None, batch_size=None, load_random_triplets=False, n_triplets=5000000,
                  fliprot=True, root='', name=''):
         super(TripletPhotoTour, self).__init__(root=root, name=name,download=True)
         self.transform = transform
@@ -78,7 +78,7 @@ class TripletPhotoTour(dset.PhotoTour):
             m = self.matches[index]
             img1 = transform_img(self.data[m[0]])
             img2 = transform_img(self.data[m[1]])
-            return img1, img2, m[2]
+            return img1, img2#, m[2]
 
         t = self.triplets[index]
         a, p, n = self.data[t[0]], self.data[t[1]], self.data[t[2]]
@@ -114,7 +114,7 @@ class TripletPhotoTour(dset.PhotoTour):
             return self.matches.size(0)
 
 
-def create_loaders(load_random_triplets=False,batchsize=512):
+def create_loaders(load_random_triplets=False, batchsize=512, n_triplets=5000000):
     # test_dataset_names = copy.copy(dataset_names)
     test_dataset_names = ['notredame']  # , 'yosemite','liberty',
     # test_dataset_names.remove(args.training_set)
@@ -141,26 +141,16 @@ def create_loaders(load_random_triplets=False,batchsize=512):
         transforms.Normalize((0.443728476019,), (0.20197947209,))])
     # if not args.augmentation:
     transform_train = transform
-    transform_test = transform
+
     train_loader = torch.utils.data.DataLoader(
         TripletPhotoTour(train=True,
                          load_random_triplets=load_random_triplets,
                          batch_size=batchsize,
                          root='../data/sets/',
                          name='liberty',
-                         transform=transform_train),
-        batch_size=512,
-        shuffle=False, **kwargs)
+                         transform=transform_train,
+                         n_triplets=n_triplets),
+        batch_size=batchsize,
+        shuffle=True, **kwargs)
 
-    test_loaders = [{'name': name,
-                     'dataloader': torch.utils.data.DataLoader(
-                         TripletPhotoTour(train=False,
-                                          batch_size=batchsize,
-                                          root='../data/sets/',
-                                          name=name,
-                                          transform=transform_test),
-                         batch_size=512,
-                         shuffle=False, **kwargs)}
-                    for name in test_dataset_names]
-
-    return train_loader, test_loaders
+    return train_loader
