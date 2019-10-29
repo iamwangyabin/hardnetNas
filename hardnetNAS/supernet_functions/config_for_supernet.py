@@ -28,14 +28,14 @@ CONFIG_SUPERNET = {
         'thetas_weight_decay' : 5 * 1e-4
     },
     'loss' : {
-        'alpha' : 0.3,
-        'beta' : 0.5
+        'alpha' : 0.2,
+        'beta' : 0.6
     },
     'train_settings' : {
         'cnt_epochs' : 180, # 90
         'train_thetas_from_the_epoch' : 1,
         'print_freq' : 100,
-        'path_to_save_model' : './supernet_functions/logs/best_model2.pth',
+        'path_to_save_model' : './supernet_functions/logs/best_model.pth',
         # for Gumbel Softmax
         'init_temperature' : 5.0,
         'exp_anneal_rate' : np.exp(-0.045)

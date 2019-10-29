@@ -68,6 +68,37 @@ SEARCH_SPACE2 = OrderedDict([
                  1])
 ])
 
+CANDIDATE_BLOCKS3 = ["ir_k3_e1", "ir_k3_s2", "ir_k3_e3",
+                    "ir_k3_e6", "ir_k5_e1", "ir_k5_s2",
+                    "ir_k5_e3", "ir_k5_e6", "skip"]
+
+SEARCH_SPACE3 = OrderedDict([
+    #### table 1. input shapes of 22 searched layers (considering with strides)
+    # Note: the second and third dimentions are recommended (will not be used in training) and written just for debagging
+    ("input_shape", [(32, 32, 32),
+                     (32, 16, 16),
+                     (32, 16, 16),
+                     (64, 8, 8),
+                     (64, 8, 8),
+                     (128, 4, 4)]),
+    # table 1. filter numbers over the 22 layers
+    ("channel_size", [32,
+                      32,
+                      64,
+                      64,
+                      128,
+                      128]),
+    # table 1. strides over the 22 layers
+    ("strides", [2,
+                 1,
+                 2,
+                 1,
+                 2,
+                 1])
+])
+
+
+
 
 # **** to recalculate latency use command:
 # l_table = LookUpTable(calulate_latency=True, path_to_file='lookup_table.txt', cnt_of_runs=50)
@@ -75,7 +106,7 @@ SEARCH_SPACE2 = OrderedDict([
 # **** to read latency from the another file use command:
 # l_table = LookUpTable(calulate_latency=False, path_to_file='lookup_table.txt')
 class LookUpTable:
-    def __init__(self, candidate_blocks=CANDIDATE_BLOCKS2, search_space=SEARCH_SPACE2,
+    def __init__(self, candidate_blocks=CANDIDATE_BLOCKS3, search_space=SEARCH_SPACE2,
                  calulate_latency=False):
         self.cnt_layers = len(search_space["input_shape"])
         # constructors for each operation
