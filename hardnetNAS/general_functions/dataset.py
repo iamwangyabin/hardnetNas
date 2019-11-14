@@ -23,7 +23,7 @@ from tqdm import tqdm
 import random
 import cv2
 import copy
-from hardnetNAS.Utils import str2bool
+from .Utils import str2bool
 
 def find_files(_data_dir, _image_ext):
     """Return a list with the file names of the images containing the patches

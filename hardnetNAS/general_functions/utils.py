@@ -3,6 +3,22 @@ import logging
 import torch
 from fbnet_building_blocks.fbnet_modeldef import MODEL_ARCH
 
+
+class Meter(object):
+    def __init__(self, name=''):
+        self._name = name
+        self.num = 0.0
+    def reset(self):
+        self.num = 0.0
+    def update(self, val):
+        self.num = val
+    def __str__(self):
+        return "%s: %.5f" % (self._name, self.num)
+    def __repr__(self):
+        return self.__str__()
+
+
+
 class AverageMeter(object):
     def __init__(self, name=''):
         self._name = name

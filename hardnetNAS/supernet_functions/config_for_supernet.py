@@ -6,15 +6,15 @@ CONFIG_SUPERNET = {
     },
     'lookup_table' : {
         'create_from_scratch' : False,
-        'path_to_lookup_table' : './supernet_functions/lookup_table2.txt',
-        'number_of_runs' : 500 # each operation run number_of_runs times and then we will take average
+        'path_to_lookup_table' : './supernet_functions/lookup_table3.txt',
+        'number_of_runs' : 1 # each operation run number_of_runs times and then we will take average
     },
     'logging' : {
         'path_to_log_file' : './supernet_functions/logs/logger/',
         'path_to_tensorboard_logs' : './supernet_functions/logs/tb'
     },
     'dataloading' : {
-        'batch_size' : 512 ,
+        'batch_size' : 128 ,
         'w_share_in_train' : 0.8,
         'path_to_save_data' : './cifar10_data'
     },

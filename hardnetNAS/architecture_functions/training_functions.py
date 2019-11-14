@@ -26,9 +26,6 @@ class TrainerArch:
         for epoch in range(self.cnt_epochs):
             
             self.writer.add_scalar('learning_rate', self.optimizer.param_groups[0]['lr'], epoch)
-            
-            #if epoch and epoch % self.lr_decay_period == 0:
-            #    self.optimizer.param_groups[0]['lr'] *= self.lr_decay
 
             # training
             self._train(train_loader, model, epoch)

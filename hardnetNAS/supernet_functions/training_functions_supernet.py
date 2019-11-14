@@ -1,20 +1,15 @@
 import torch
 from torch.autograd import Variable
 import time
-from general_functions.utils import AverageMeter, save, accuracy
+import numpy as np
+from general_functions.utils import AverageMeter, save, accuracy, Meter
 from supernet_functions.config_for_supernet import CONFIG_SUPERNET
-
-import dataloader
+from general_functions.EvalMetrics import ErrorRateAt95Recall
+import general_functions.dataloader as dataloader
 
 
 class TrainerSupernet:
-    def __init__(self, criterion, w_optimizer, theta_optimizer, w_scheduler, logger, writer):
-        self.top1 = AverageMeter()
-        self.top3 = AverageMeter()
-        self.losses = AverageMeter()
-        self.losses_lat = AverageMeter()
-        self.losses_ce = AverageMeter()
-
+    def __init__(self, criterion, w_optimizer, theta_optimizer, w_scheduler, logger, writer, lookup_table):
         self.logger = logger
         self.writer = writer
 
@@ -30,117 +25,130 @@ class TrainerSupernet:
         self.print_freq = CONFIG_SUPERNET['train_settings']['print_freq']
         self.path_to_save_model = CONFIG_SUPERNET['train_settings']['path_to_save_model']
 
+        self.lookup_table = lookup_table
+        op_name = [op_name for op_name in self.lookup_table.lookup_table_operations]
+        self.latency_table = []
+        for i in self.lookup_table.lookup_table_latency:
+            temp = []
+            for j in op_name:
+                temp.append(i[j])
+            self.latency_table.append(temp)
+
     def train_loop(self, train_w_loader, train_thetas_loader, test_loader, model):
 
         best_top1 = 0.0
 
         # firstly, train weights only
         for epoch in range(self.train_thetas_from_the_epoch):
-            self.writer.add_scalar('learning_rate/weights', self.w_optimizer.param_groups[0]['lr'], epoch)
-
-            self.logger.info("Firstly, start to train weights for epoch %d" % (epoch))
-            self._training_step(model, train_w_loader, self.w_optimizer, epoch, info_for_logger="_w_step_")
+            # self.writer.add_scalar('learning_rate/weights', self.w_optimizer.param_groups[0]['lr'], epoch)
+            self.logger.info("Prepare trainla %d" % (epoch))
+            self._training_step(model, train_w_loader, self.w_optimizer)
             self.w_scheduler.step()
 
         for epoch in range(self.train_thetas_from_the_epoch, self.cnt_epochs):
-            self.writer.add_scalar('learning_rate/weights', self.w_optimizer.param_groups[0]['lr'], epoch)
-            self.writer.add_scalar('learning_rate/theta', self.theta_optimizer.param_groups[0]['lr'], epoch)
-
-            self.logger.info("Start to train weights for epoch %d" % (epoch))
-            self._training_step(model, train_w_loader, self.w_optimizer, epoch, info_for_logger="_w_step_")
+            # self.writer.add_scalar('learning_rate/weights', self.w_optimizer.param_groups[0]['lr'], epoch)
+            # self.writer.add_scalar('learning_rate/theta', self.theta_optimizer.param_groups[0]['lr'], epoch)
+            self.logger.info("Epoch %d" % (epoch))
+            self.logger.info("Train Weights for epoch %d" % (epoch))
+            self._training_step(model, train_w_loader, self.w_optimizer)
             self.w_scheduler.step()
+            self.logger.info("Train Thetas for epoch %d" % (epoch))
+            self._training_step(model, train_thetas_loader, self.theta_optimizer)
 
-            self.logger.info("Start to train theta for epoch %d" % (epoch))
-            self._training_step(model, train_thetas_loader, self.theta_optimizer, epoch, info_for_logger="_theta_step_")
-
-            top1_avg = self._validate(model, test_loader, epoch)
-            if best_top1 < top1_avg:
-                best_top1 = top1_avg
+            top1_acc = self._validate(model, test_loader)
+            if best_top1 < top1_acc:
+                best_top1 = top1_acc
                 self.logger.info("Best top1 acc by now. Save model")
                 save(model, self.path_to_save_model)
 
             self.temperature = self.temperature * self.exp_anneal_rate
-
             train_w_loader = dataloader.create_loaders(load_random_triplets=False,
                                                        batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                       n_triplets=500000)
+                                                       n_triplets=50000)
             train_thetas_loader = dataloader.create_loaders(load_random_triplets=False,
                                                             batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                            n_triplets=500000)
-            test_loader = dataloader.create_loaders(load_random_triplets=False,
-                                                    batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                    n_triplets=50000)
+                                                            n_triplets=20000)
 
-    def _training_step(self, model, loader, optimizer, epoch, info_for_logger=""):
+    def get_sample_latency(self, model):
+        parameters = []
+        sample_latency = 0
+        for layer in model.module.stages_to_search:
+            parameters.append(torch.argmax(layer.thetas).item())
+        for i in range(len(parameters)):
+            sample_latency += self.latency_table[i][parameters[i]]
+        return sample_latency
+
+    def _training_step(self, model, loader, optimizer):
         model = model.train()
-        start_time = time.time()
-
+        epochLoss=0
+        epochLat=0
+        epochCe=0
+        # epochsoft = 0
+        # epochhard = 0
         for step, (X, Y) in enumerate(loader):
             X, Y = X.cuda(non_blocking=True), Y.cuda(non_blocking=True)
-            # X.to(device, non_blocking=True), y.to(device, non_blocking=True)
-            N = X.shape[0]
-            
             optimizer.zero_grad()
             latency_to_accumulate = Variable(torch.Tensor([[0.0]]), requires_grad=True).cuda()
-            outs_Y, _ = model(Y, self.temperature, latency_to_accumulate)
-            outs_X, latency_to_accumulate = model(X, self.temperature, latency_to_accumulate)
-            loss = self.criterion(outs_X, outs_Y, latency_to_accumulate, self.losses_ce, self.losses_lat, N)
+            outs_Y, latency_to_accumulate, soft ,hard = model(Y, self.temperature, latency_to_accumulate)
+            outs_X, latency_to_accumulate ,_,_= model(X, self.temperature, latency_to_accumulate)
+            # epochsoft += soft.item()
+            # epochhard += hard
+
+            sample_latency = self.get_sample_latency(model)
+            # latency_to_accumulate/2 因为是用了两次
+            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate/2, sample_latency)
             loss.backward()
             optimizer.step()
-            self._intermediate_stats_logging(outs_X, outs_Y, loss, step, epoch, N, len_loader=len(loader),
-                                             val_or_train="Train")
+            epochLoss+=loss
+            self.logger.info('latency_to_accumulate:\t'+str(latency_to_accumulate.item())+'\tsoft:\t'+str(soft.item()) + '\thard:\t' + str(hard))
+            # epochLat+=lat
+            # epochCe+=ce
+        # import pdb
+        # pdb.set_trace()
+        self.logger.info("Loss:%f,\tLat:%f,\tCe:%f" % (epochLoss/step, epochLat/step, epochCe/step))
 
-        self._epoch_stats_logging(start_time=start_time, epoch=epoch, info_for_logger=info_for_logger,
-                                  val_or_train='train')
-        for avg in [self.top1, self.top3, self.losses]:
-            avg.reset()
-
-    def _validate(self, model, loader, epoch):
+    def _validate(self, model, loader):
         model.eval()
-        start_time = time.time()
-
+        accnum = 0
         with torch.no_grad():
-            for step, (X, Y) in enumerate(loader):
-                X, Y = X.cuda(), Y.cuda()
-                N = X.shape[0]
-
+            for step, (X, Y, label) in enumerate(loader):
+                X, Y, label = X.cuda(), Y.cuda(), label.cuda()
                 latency_to_accumulate = torch.Tensor([[0.0]]).cuda()
-                outs_Y, _ = model(Y, self.temperature, latency_to_accumulate)
-                outs_X, latency_to_accumulate = model(X, self.temperature, latency_to_accumulate)
-                loss = self.criterion(outs_X, outs_Y, latency_to_accumulate, self.losses_ce, self.losses_lat, N)
+                outs_Y, latency_to_accumulate,_,_ = model(Y, self.temperature, latency_to_accumulate)
+                outs_X, latency_to_accumulate,_,_ = model(X, self.temperature, latency_to_accumulate)
 
-                self._intermediate_stats_logging(outs_X, outs_Y, loss, step, epoch, N, len_loader=len(loader),
-                                                 val_or_train="Valid")
+                for i in range(len(outs_X)):
+                    if label[i] == 0:
+                        continue
+                    else:
+                        dis = torch.sum((outs_Y - outs_X[i]) ** 2, 1)
+                        top1value, top1 = torch.kthvalue(dis, 1)
+                        top2value, top2 = torch.kthvalue(dis, 2)
+                        if top1 == i and top2value * 0.8 > top1value:
+                            accnum += 1
+        accuracy = accnum / 50000
+        sample_latency = self.get_sample_latency(model)
+        print(sample_latency)
+        self.logger.info("accuracy:%f,\tsample_latency:%f" % (accuracy,sample_latency))
+        # import pdb
+        # pdb.set_trace()
+        # self._intermediate_stats_logging(accuracy, epoch, val_or_train="Valid")
+        return accuracy
 
-        top1_avg = self.top1.get_avg()
-        self._epoch_stats_logging(start_time=start_time, epoch=epoch, val_or_train='val')
-        for avg in [self.top1, self.top3, self.losses]:
-            avg.reset()
-        return top1_avg
-
-    def _epoch_stats_logging(self, start_time, epoch, val_or_train, info_for_logger=''):
-        self.writer.add_scalar('train_vs_val/' + val_or_train + '_loss' + info_for_logger, self.losses.get_avg(), epoch)
-        self.writer.add_scalar('train_vs_val/' + val_or_train + '_top1' + info_for_logger, self.top1.get_avg(), epoch)
-        self.writer.add_scalar('train_vs_val/' + val_or_train + '_top3' + info_for_logger, self.top3.get_avg(), epoch)
-        self.writer.add_scalar('train_vs_val/' + val_or_train + '_losses_lat' + info_for_logger,
-                               self.losses_lat.get_avg(), epoch)
-        self.writer.add_scalar('train_vs_val/' + val_or_train + '_losses_ce' + info_for_logger,
-                               self.losses_ce.get_avg(), epoch)
-
-        top1_avg = self.top1.get_avg()
-        self.logger.info(info_for_logger + val_or_train + ": [{:3d}/{}] Final Prec@1 {:.4%} Time {:.2f}".format(
-            epoch + 1, self.cnt_epochs, top1_avg, time.time() - start_time))
-
-    def _intermediate_stats_logging(self, outs, y, loss, step, epoch, N, len_loader, val_or_train):
-        prec1, prec3 = accuracy(outs, y, topk=(1, 5))
-        self.losses.update(loss.item(), N)
-        self.top1.update(prec1.item(), N)
-        self.top3.update(prec3.item(), N)
-
-        if (step > 1 and step % self.print_freq == 0) or step == len_loader - 1:
-            self.logger.info(val_or_train +
-                             ": [{:3d}/{}] Step {:03d}/{:03d} Loss {:.3f} "
-                             "Prec@(1,3) ({:.1%}, {:.1%}), ce_loss {:.3f}, lat_loss {:.3f}".format(
-                                 epoch + 1, self.cnt_epochs, step, len_loader - 1, self.losses.get_avg(),
-                                 self.top1.get_avg(), self.top3.get_avg(), self.losses_ce.get_avg(),
-                                 self.losses_lat.get_avg()))
+    # def _epoch_stats_logging(self, start_time, epoch, val_or_train, info_for_logger=''):
+    #     self.writer.add_scalar('train_vs_val/' + val_or_train + '_loss' + info_for_logger, self.losses.get_avg(), epoch)
+    #     self.writer.add_scalar('train_vs_val/' + val_or_train + '_losses_lat' + info_for_logger,
+    #                            self.losses_lat.get_avg(), epoch)
+    #     self.writer.add_scalar('train_vs_val/' + val_or_train + '_losses_ce' + info_for_logger,
+    #                            self.losses_ce.get_avg(), epoch)
+    #
+    #     self.logger.info(
+    #         info_for_logger + val_or_train + ": [{:3d}/{}] Loss {:.3f}, ce_loss {:.3f}, lat_loss {:.3f}, Time {:.2f}".format(
+    #             epoch + 1, self.cnt_epochs, self.losses.get_avg(), self.losses_ce.get_avg(), self.losses_lat.get_avg(),
+    #             time.time() - start_time))
+    #
+    # def _intermediate_stats_logging(self, fpr95, epoch, val_or_train):
+    #     self.top1.update(fpr95)
+    #     self.logger.info(val_or_train + ": [{:3d}/{}] Loss {:.3f}, Prec@{:.4%}, ce_loss {:.3f}, lat_loss {:.3f}".format(
+    #         epoch + 1, self.cnt_epochs, self.losses.get_avg(), fpr95, self.losses_ce.get_avg(),
+    #         self.losses_lat.get_avg()))

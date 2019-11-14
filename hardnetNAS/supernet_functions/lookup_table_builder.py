@@ -2,6 +2,10 @@ import timeit
 import torch
 from collections import OrderedDict
 import gc
+import time
+from torch import nn
+
+
 from fbnet_building_blocks.fbnet_builder import PRIMITIVES
 from general_functions.utils import add_text_to_file, clear_files_in_the_list
 from supernet_functions.config_for_supernet import CONFIG_SUPERNET
@@ -106,7 +110,7 @@ SEARCH_SPACE3 = OrderedDict([
 # **** to read latency from the another file use command:
 # l_table = LookUpTable(calulate_latency=False, path_to_file='lookup_table.txt')
 class LookUpTable:
-    def __init__(self, candidate_blocks=CANDIDATE_BLOCKS3, search_space=SEARCH_SPACE2,
+    def __init__(self, candidate_blocks=CANDIDATE_BLOCKS3, search_space=SEARCH_SPACE3,
                  calulate_latency=False):
         self.cnt_layers = len(search_space["input_shape"])
         # constructors for each operation
@@ -149,20 +153,37 @@ class LookUpTable:
             self._write_lookup_table_to_file(write_to_file)
     
     def _calculate_latency(self, operations, layers_parameters, layers_input_shapes, cnt_of_runs):
-        LATENCY_BATCH_SIZE = 1
+        LATENCY_BATCH_SIZE = 1000
         latency_table_layer_by_ops = [{} for i in range(self.cnt_layers)]
         
         for layer_id in range(self.cnt_layers):
             for op_name in operations:
-                op = operations[op_name](*layers_parameters[layer_id]).cuda()
-                input_sample = torch.randn((LATENCY_BATCH_SIZE, *layers_input_shapes[layer_id])).cuda()
+                op = operations[op_name](*layers_parameters[layer_id])
+                input_sample = torch.randn((LATENCY_BATCH_SIZE, *layers_input_shapes[layer_id])).to(torch.float32).cuda()
+                class net(nn.Module):
+                    def __init__(self):
+                        super(net, self).__init__()
+                        self.features = op
+                    def forward(self, input):
+                        input = self.features(input)
+                        return input
 
-                globals()['op'], globals()['input_sample'] = op, input_sample
-                total_time = timeit.timeit('output = op(input_sample)', setup="gc.enable()", \
-                                           globals=globals(), number=cnt_of_runs)
+                model = net().cuda()
+                for i in range(10):
+                    model(input_sample)
+                total_time = 0
+                for i in range(cnt_of_runs):
+                    input_sample = torch.randn((LATENCY_BATCH_SIZE, *layers_input_shapes[layer_id])).to(
+                        torch.float32).cuda()
+                    torch.cuda.synchronize()
+                    time0 = time.time()
+                    model(input_sample)
+                    torch.cuda.synchronize()
+                    time1 = time.time()
+                    total_time += (time1 - time0)
+                    # torch.cuda.empty_cache()
                 # measured in micro-second
-                latency_table_layer_by_ops[layer_id][op_name] = total_time / cnt_of_runs / LATENCY_BATCH_SIZE * 1e6
-
+                latency_table_layer_by_ops[layer_id][op_name] = total_time / cnt_of_runs *1e3# / LATENCY_BATCH_SIZE * 1e3
 
         return latency_table_layer_by_ops
     

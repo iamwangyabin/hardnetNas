@@ -160,4 +160,3 @@ def global_orthogonal_regularization(anchor, negative):
     gor = torch.pow(torch.mean(neg_dis),2) + torch.clamp(torch.mean(torch.pow(neg_dis,2))-1.0/dim, min=0.0)
     
     return gor
-

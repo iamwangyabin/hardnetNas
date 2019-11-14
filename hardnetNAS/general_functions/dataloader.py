@@ -7,7 +7,7 @@ from tqdm import tqdm
 import numpy as np
 import random
 import PIL
-from Utils import cv2_scale, np_reshape
+from .Utils import cv2_scale, np_reshape
 
 class TripletPhotoTour(dset.PhotoTour):
     """
@@ -78,7 +78,7 @@ class TripletPhotoTour(dset.PhotoTour):
             m = self.matches[index]
             img1 = transform_img(self.data[m[0]])
             img2 = transform_img(self.data[m[1]])
-            return img1, img2#, m[2]
+            return img1, img2, m[2]
 
         t = self.triplets[index]
         a, p, n = self.data[t[0]], self.data[t[1]], self.data[t[2]]
@@ -115,32 +115,12 @@ class TripletPhotoTour(dset.PhotoTour):
 
 
 def create_loaders(load_random_triplets=False, batchsize=512, n_triplets=5000000):
-    # test_dataset_names = copy.copy(dataset_names)
-    test_dataset_names = ['notredame']  # , 'yosemite','liberty',
-    # test_dataset_names.remove(args.training_set)
-
     kwargs = {'num_workers': 0, 'pin_memory': True}
-
-    np_reshape64 = lambda x: np.reshape(x, (64, 64, 1))
-    transform_test = transforms.Compose([
-        transforms.Lambda(np_reshape64),
-        transforms.ToPILImage(),
-        transforms.Resize(32),
-        transforms.ToTensor()])
-    transform_train = transforms.Compose([
-        transforms.Lambda(np_reshape64),
-        transforms.ToPILImage(),
-        transforms.RandomRotation(5, PIL.Image.BILINEAR),
-        transforms.RandomResizedCrop(32, scale=(0.9, 1.0), ratio=(0.9, 1.1)),
-        transforms.Resize(32),
-        transforms.ToTensor()])
     transform = transforms.Compose([
         transforms.Lambda(cv2_scale),
         transforms.Lambda(np_reshape),
         transforms.ToTensor(),
         transforms.Normalize((0.443728476019,), (0.20197947209,))])
-    # if not args.augmentation:
-    transform_train = transform
 
     train_loader = torch.utils.data.DataLoader(
         TripletPhotoTour(train=True,
@@ -148,9 +128,30 @@ def create_loaders(load_random_triplets=False, batchsize=512, n_triplets=5000000
                          batch_size=batchsize,
                          root='../data/sets/',
                          name='liberty',
-                         transform=transform_train,
+                         transform=transform,
                          n_triplets=n_triplets),
         batch_size=batchsize,
         shuffle=True, **kwargs)
 
     return train_loader
+
+def create_test_loaders(load_random_triplets=False, batchsize=512, n_triplets=5000000):
+    kwargs = {'num_workers': 0, 'pin_memory': True}
+    transform = transforms.Compose([
+        transforms.Lambda(cv2_scale),
+        transforms.Lambda(np_reshape),
+        transforms.ToTensor(),
+        transforms.Normalize((0.443728476019,), (0.20197947209,))])
+
+    test_loaders = torch.utils.data.DataLoader(
+        TripletPhotoTour(train=False,
+                         batch_size= batchsize,
+                         root= '../data/sets/',
+                         name='liberty',
+                         transform=transform,
+                         n_triplets=n_triplets),
+        batch_size=batchsize,
+        shuffle=False, **kwargs)
+
+    return test_loaders
+
