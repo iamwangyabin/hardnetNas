@@ -16,7 +16,6 @@ CONFIG_SUPERNET = {
     'dataloading' : {
         'batch_size' : 128 ,
         'w_share_in_train' : 0.8,
-        'path_to_save_data' : './cifar10_data'
     },
     'optimizer' : {
         # SGD parameters for w
@@ -35,7 +34,7 @@ CONFIG_SUPERNET = {
         'cnt_epochs' : 180, # 90
         'train_thetas_from_the_epoch' : 1,
         'print_freq' : 100,
-        'path_to_save_model' : './supernet_functions/logs/best_model.pth',
+        'path_to_save_model' : './supernet_functions/logs/',
         # for Gumbel Softmax
         'init_temperature' : 5.0,
         'exp_anneal_rate' : np.exp(-0.045)

@@ -85,14 +85,16 @@ class SupernetLoss(nn.Module):
 
     def forward(self, outs, targets, latency, sample_latency):
         ce = self.weight_criterion_hardnet(outs, targets)
-        # if (sample_latency-20+1)>0:
-        #     lat = torch.log(latency ** self.beta) * (torch.log(torch.tensor(sample_latency-20+1))**0.5)
-        # else:
-        #     lat = torch.log(latency ** self.beta) * 0
-        lat = torch.log(latency ** self.beta)
+
+        if (sample_latency-20)>0:
+            # lat = torch.log(latency ** self.beta) * (torch.log(torch.tensor(sample_latency-20+1))**0.5)
+            lat = torch.log(latency ** self.beta) * ((sample_latency-20)/20)**1.07
+        else:
+            lat = torch.log(latency ** self.beta) * 0
+        # lat = torch.log(latency ** self.beta)
         # import pdb
         # pdb.set_trace()
-        loss = self.alpha * ce * lat
-        # loss = self.alpha * (ce + lat)
+        # loss = self.alpha * ce * lat
+        loss = self.alpha * (ce + lat)
         return loss, ce, lat
 

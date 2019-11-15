@@ -7,7 +7,6 @@ from supernet_functions.config_for_supernet import CONFIG_SUPERNET
 from general_functions.EvalMetrics import ErrorRateAt95Recall
 import general_functions.dataloader as dataloader
 
-
 class TrainerSupernet:
     def __init__(self, criterion, w_optimizer, theta_optimizer, w_scheduler, logger, writer, lookup_table):
         self.logger = logger
@@ -37,6 +36,7 @@ class TrainerSupernet:
     def train_loop(self, train_w_loader, train_thetas_loader, test_loader, model):
 
         best_top1 = 0.0
+        best_lat = 9999.9
 
         # firstly, train weights only
         for epoch in range(self.train_thetas_from_the_epoch):
@@ -55,11 +55,13 @@ class TrainerSupernet:
             self.logger.info("Train Thetas for epoch %d" % (epoch))
             self._training_step(model, train_thetas_loader, self.theta_optimizer)
 
-            top1_acc = self._validate(model, test_loader)
-            if best_top1 < top1_acc:
-                best_top1 = top1_acc
+            acc,lat = self._validate(model, test_loader)
+            if acc>best_top1 or lat < best_lat:
+                best_top1 = acc
+                best_lat = lat
                 self.logger.info("Best top1 acc by now. Save model")
-                save(model, self.path_to_save_model)
+
+                save(model, self.path_to_save_model+"acc%.3f_lat%.3f.pth"%(acc,lat))
 
             self.temperature = self.temperature * self.exp_anneal_rate
             train_w_loader = dataloader.create_loaders(load_random_triplets=False,
@@ -80,43 +82,44 @@ class TrainerSupernet:
 
     def _training_step(self, model, loader, optimizer):
         model = model.train()
-        epochLoss=0
-        epochLat=0
-        epochCe=0
-        # epochsoft = 0
-        # epochhard = 0
+        epochLoss = 0
+        epochLat = 0
+        epochCe = 0
         for step, (X, Y) in enumerate(loader):
             X, Y = X.cuda(non_blocking=True), Y.cuda(non_blocking=True)
             optimizer.zero_grad()
             latency_to_accumulate = Variable(torch.Tensor([[0.0]]), requires_grad=True).cuda()
-            outs_Y, latency_to_accumulate, soft ,hard = model(Y, self.temperature, latency_to_accumulate)
-            outs_X, latency_to_accumulate ,_,_= model(X, self.temperature, latency_to_accumulate)
-            # epochsoft += soft.item()
-            # epochhard += hard
+            outs_Y, latency_to_accumulate, soft1, hard1 = model(Y, self.temperature, latency_to_accumulate)
+            outs_X, latency_to_accumulate, soft2, hard2 = model(X, self.temperature, latency_to_accumulate)
+            soft_latency = (soft1 + soft2) / 2
+            hard_latency = (hard1 + hard2) / 2
 
-            sample_latency = self.get_sample_latency(model)
             # latency_to_accumulate/2 因为是用了两次
-            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate/2, sample_latency)
+            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate / 2, soft_latency)
             loss.backward()
             optimizer.step()
-            epochLoss+=loss
-            self.logger.info('latency_to_accumulate:\t'+str(latency_to_accumulate.item())+'\tsoft:\t'+str(soft.item()) + '\thard:\t' + str(hard))
-            # epochLat+=lat
-            # epochCe+=ce
-        # import pdb
-        # pdb.set_trace()
-        self.logger.info("Loss:%f,\tLat:%f,\tCe:%f" % (epochLoss/step, epochLat/step, epochCe/step))
+
+            epochLoss += loss
+            epochLat += lat
+            epochCe += ce
+            if (step % self.print_freq == 0):
+                self.logger.info('Step:%3d Loss:%.3f,Lat:%.3f,Ce:%.3f -- latency:%.4f, soft:%.4f, hard:%.4f' % (
+                step, loss, lat, ce, latency_to_accumulate.item(), soft_latency.item(), hard_latency))
+
+        self.logger.info("EPOCH Loss:%f,\tLat:%f,\tCe:%f" % (epochLoss / step, epochLat / step, epochCe / step))
 
     def _validate(self, model, loader):
         model.eval()
         accnum = 0
+        latency = 0
+        self.logger.info("Start Validate")
         with torch.no_grad():
             for step, (X, Y, label) in enumerate(loader):
                 X, Y, label = X.cuda(), Y.cuda(), label.cuda()
                 latency_to_accumulate = torch.Tensor([[0.0]]).cuda()
-                outs_Y, latency_to_accumulate,_,_ = model(Y, self.temperature, latency_to_accumulate)
-                outs_X, latency_to_accumulate,_,_ = model(X, self.temperature, latency_to_accumulate)
-
+                outs_Y, latency_to_accumulate, _, hard1 = model(Y, self.temperature, latency_to_accumulate)
+                outs_X, latency_to_accumulate, _, hard2 = model(X, self.temperature, latency_to_accumulate)
+                latency += (hard1+hard2)/2
                 for i in range(len(outs_X)):
                     if label[i] == 0:
                         continue
@@ -127,26 +130,10 @@ class TrainerSupernet:
                         if top1 == i and top2value * 0.8 > top1value:
                             accnum += 1
         accuracy = accnum / 50000
-        sample_latency = self.get_sample_latency(model)
-        print(sample_latency)
-        self.logger.info("accuracy:%f,\tsample_latency:%f" % (accuracy,sample_latency))
-        # import pdb
-        # pdb.set_trace()
-        # self._intermediate_stats_logging(accuracy, epoch, val_or_train="Valid")
-        return accuracy
+        latency = latency / step
+        self.logger.info("accuracy:%f,\tsample_latency:%f" % (accuracy, latency))
+        return accuracy, latency
 
-    # def _epoch_stats_logging(self, start_time, epoch, val_or_train, info_for_logger=''):
-    #     self.writer.add_scalar('train_vs_val/' + val_or_train + '_loss' + info_for_logger, self.losses.get_avg(), epoch)
-    #     self.writer.add_scalar('train_vs_val/' + val_or_train + '_losses_lat' + info_for_logger,
-    #                            self.losses_lat.get_avg(), epoch)
-    #     self.writer.add_scalar('train_vs_val/' + val_or_train + '_losses_ce' + info_for_logger,
-    #                            self.losses_ce.get_avg(), epoch)
-    #
-    #     self.logger.info(
-    #         info_for_logger + val_or_train + ": [{:3d}/{}] Loss {:.3f}, ce_loss {:.3f}, lat_loss {:.3f}, Time {:.2f}".format(
-    #             epoch + 1, self.cnt_epochs, self.losses.get_avg(), self.losses_ce.get_avg(), self.losses_lat.get_avg(),
-    #             time.time() - start_time))
-    #
     # def _intermediate_stats_logging(self, fpr95, epoch, val_or_train):
     #     self.top1.update(fpr95)
     #     self.logger.info(val_or_train + ": [{:3d}/{}] Loss {:.3f}, Prec@{:.4%}, ce_loss {:.3f}, lat_loss {:.3f}".format(

@@ -6,8 +6,7 @@ import torchvision.transforms as transforms
 from tqdm import tqdm
 import numpy as np
 import random
-import PIL
-from .Utils import cv2_scale, np_reshape
+from .utils import cv2_scale, np_reshape
 
 class TripletPhotoTour(dset.PhotoTour):
     """
@@ -147,7 +146,7 @@ def create_test_loaders(load_random_triplets=False, batchsize=512, n_triplets=50
         TripletPhotoTour(train=False,
                          batch_size= batchsize,
                          root= '../data/sets/',
-                         name='liberty',
+                         name='notredame',
                          transform=transform,
                          n_triplets=n_triplets),
         batch_size=batchsize,
