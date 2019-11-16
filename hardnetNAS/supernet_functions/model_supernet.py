@@ -38,11 +38,14 @@ class MixedOperation(nn.Module):
     # 一维的NMS
     def softnms(self, variables, ksize, strength):
         maxk = torch.nn.functional.max_pool1d(variables, ksize, stride=1, padding=ksize // 2)
+
         max_all, max_all_idx = maxk.max(dim=-1, keepdim=True)
         exp_maps = torch.exp(strength * (variables - max_all))
         exp_maps_pad = torch.nn.functional.pad(exp_maps, [ksize // 2, ksize // 2], mode='replicate')
         sum_exp = torch.nn.functional.conv1d(exp_maps_pad, weight=torch.ones([1, 1, ksize]).to(exp_maps.device),
                                              stride=1)
+        # import pdb
+        # pdb.set_trace()
         probs = exp_maps / sum_exp
         return probs
 
@@ -87,12 +90,12 @@ class SupernetLoss(nn.Module):
         self.weight_criterion = nn.CrossEntropyLoss()
         self.weight_criterion_hardnet = Losses.loss_HardNet
 
-    def forward(self, outs, targets, latency, sample_latency):
+    def forward(self, outs, targets, latency, sample_latency, target):
         ce = self.weight_criterion_hardnet(outs, targets)
 
-        if (sample_latency - 20) > 0:
+        if (sample_latency - target) > 0:
             # lat = torch.log(latency ** self.beta) * (torch.log(torch.tensor(sample_latency-20+1))**0.5)
-            lat = torch.log(latency ** self.beta) * ((sample_latency - 20) / 20) ** 1.07
+            lat = torch.log(latency ** self.beta) * ((sample_latency*0.9 - target) / target) ** 1.07
         else:
             lat = torch.log(latency ** self.beta) * 0
         # lat = torch.log(latency ** self.beta)

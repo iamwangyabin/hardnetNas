@@ -15,7 +15,7 @@ from fbnet_building_blocks.fbnet_modeldef import MODEL_ARCH
 
 import general_functions.dataloader as dataloader
 
-# lookup_table = LookUpTable(calulate_latency=True)
+lookup_table = LookUpTable(calulate_latency=True)
 
 parser = argparse.ArgumentParser("action")
 parser.add_argument('--train_or_sample', type=str, default='', \

@@ -24,6 +24,8 @@ class TrainerSupernet:
         self.print_freq = CONFIG_SUPERNET['train_settings']['print_freq']
         self.path_to_save_model = CONFIG_SUPERNET['train_settings']['path_to_save_model']
 
+        self.target_latency = CONFIG_SUPERNET['target_latency']
+
         self.lookup_table = lookup_table
         op_name = [op_name for op_name in self.lookup_table.lookup_table_operations]
         self.latency_table = []
@@ -37,6 +39,7 @@ class TrainerSupernet:
 
         best_top1 = 0.0
         best_lat = 9999.9
+        score = 0
 
         # firstly, train weights only
         for epoch in range(self.train_thetas_from_the_epoch):
@@ -56,12 +59,15 @@ class TrainerSupernet:
             self._training_step(model, train_thetas_loader, self.theta_optimizer)
 
             acc,lat = self._validate(model, test_loader)
-            if acc>best_top1 or lat < best_lat:
+            # import pdb
+            # pdb.set_trace()
+            current_score = acc + 1/np.abs(lat-self.target_latency)
+            if acc>best_top1 or lat < best_lat or current_score>score:
                 best_top1 = acc
                 best_lat = lat
+                score = current_score
                 self.logger.info("Best top1 acc by now. Save model")
-
-                save(model, self.path_to_save_model+"acc%.3f_lat%.3f.pth"%(acc,lat))
+                save(model, self.path_to_save_model+"score%.3f_acc%.3f_lat%.3f.pth"%(score,acc,lat))
 
             self.temperature = self.temperature * self.exp_anneal_rate
             train_w_loader = dataloader.create_loaders(load_random_triplets=False,
@@ -69,7 +75,7 @@ class TrainerSupernet:
                                                        n_triplets=50000)
             train_thetas_loader = dataloader.create_loaders(load_random_triplets=False,
                                                             batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                            n_triplets=20000)
+                                                            n_triplets=50000)
 
     def get_sample_latency(self, model):
         parameters = []
@@ -95,7 +101,7 @@ class TrainerSupernet:
             hard_latency = (hard1 + hard2) / 2
 
             # latency_to_accumulate/2 因为是用了两次
-            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate / 2, soft_latency)
+            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate / 2, soft_latency, self.target_latency)
             loss.backward()
             optimizer.step()
 
@@ -129,13 +135,8 @@ class TrainerSupernet:
                         top2value, top2 = torch.kthvalue(dis, 2)
                         if top1 == i and top2value * 0.8 > top1value:
                             accnum += 1
+
         accuracy = accnum / 50000
         latency = latency / step
         self.logger.info("accuracy:%f,\tsample_latency:%f" % (accuracy, latency))
         return accuracy, latency
-
-    # def _intermediate_stats_logging(self, fpr95, epoch, val_or_train):
-    #     self.top1.update(fpr95)
-    #     self.logger.info(val_or_train + ": [{:3d}/{}] Loss {:.3f}, Prec@{:.4%}, ce_loss {:.3f}, lat_loss {:.3f}".format(
-    #         epoch + 1, self.cnt_epochs, self.losses.get_avg(), fpr95, self.losses_ce.get_avg(),
-    #         self.losses_lat.get_avg()))

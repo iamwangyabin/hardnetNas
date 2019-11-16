@@ -6,8 +6,8 @@ CONFIG_SUPERNET = {
     },
     'lookup_table' : {
         'create_from_scratch' : False,
-        'path_to_lookup_table' : './supernet_functions/lookup_table3.txt',
-        'number_of_runs' : 1 # each operation run number_of_runs times and then we will take average
+        'path_to_lookup_table' : './supernet_functions/lookup_table.txt',
+        'number_of_runs' : 10 # each operation run number_of_runs times and then we will take average
     },
     'logging' : {
         'path_to_log_file' : './supernet_functions/logs/logger/',
@@ -32,11 +32,12 @@ CONFIG_SUPERNET = {
     },
     'train_settings' : {
         'cnt_epochs' : 180, # 90
-        'train_thetas_from_the_epoch' : 1,
+        'train_thetas_from_the_epoch' : 20,
         'print_freq' : 100,
         'path_to_save_model' : './supernet_functions/logs/',
         # for Gumbel Softmax
         'init_temperature' : 5.0,
         'exp_anneal_rate' : np.exp(-0.045)
-    }
+    },
+    'target_latency' : 20
 }

@@ -16,37 +16,30 @@ CANDIDATE_BLOCKS = ["ir_k3_e1", "ir_k3_s2", "ir_k3_e3",
                     "ir_k3_e6", "ir_k5_e1", "ir_k5_s2",
                     "ir_k5_e3", "ir_k5_e6", "skip"]
 
-SEARCH_SPACE = OrderedDict([
+SEARCH_SPACE2 = OrderedDict([
     #### table 1. input shapes of 22 searched layers (considering with strides)
     # Note: the second and third dimentions are recommended (will not be used in training) and written just for debagging
-    ("input_shape", [(16, 112, 112),
-                     (16, 112, 112), (24, 56, 56),  (24, 56, 56),  (24, 56, 56),
-                     (24, 56, 56),   (32, 28, 28),  (32, 28, 28),  (32, 28, 28),
-                     (32, 28, 28),   (64, 14, 14),  (64, 14, 14),  (64, 14, 14),
-                     (64, 14, 14),   (112, 14, 14), (112, 14, 14), (112, 14, 14),
-                     (112, 14, 14),  (184, 7, 7),   (184, 7, 7),   (184, 7, 7),
-                     (184, 7, 7)]),
+    ("input_shape", [(32, 32, 32),
+                     (32, 16, 16),
+                     (32, 16, 16),
+                     (64, 8, 8),
+                     (64, 8, 8),
+                     (128, 4, 4)]),
     # table 1. filter numbers over the 22 layers
-    ("channel_size", [16,
-                      24,  24,  24,  24,
-                      32,  32,  32,  32,
-                      64,  64,  64,  64,
-                      112, 112, 112, 112,
-                      184, 184, 184, 184,
-                      352]),
+    ("channel_size", [32,
+                      32,
+                      64,
+                      64,
+                      128,
+                      128]),
     # table 1. strides over the 22 layers
-    ("strides", [1,
-                 2, 1, 1, 1,
-                 2, 1, 1, 1,
-                 2, 1, 1, 1,
-                 1, 1, 1, 1,
-                 2, 1, 1, 1,
+    ("strides", [2,
+                 1,
+                 2,
+                 1,
+                 2,
                  1])
 ])
-
-CANDIDATE_BLOCKS3 = ["ir_k3_e1", "ir_k3_s2", "ir_k3_e3",
-                    "ir_k3_e6", "ir_k5_e1", "ir_k5_s2",
-                    "ir_k5_e3", "ir_k5_e6", "skip"]
 
 SEARCH_SPACE3 = OrderedDict([
     #### table 1. input shapes of 22 searched layers (considering with strides)
@@ -82,7 +75,7 @@ SEARCH_SPACE3 = OrderedDict([
 # **** to read latency from the another file use command:
 # l_table = LookUpTable(calulate_latency=False, path_to_file='lookup_table.txt')
 class LookUpTable:
-    def __init__(self, candidate_blocks=CANDIDATE_BLOCKS3, search_space=SEARCH_SPACE3,
+    def __init__(self, candidate_blocks=CANDIDATE_BLOCKS, search_space=SEARCH_SPACE2,
                  calulate_latency=False):
         self.cnt_layers = len(search_space["input_shape"])
         # constructors for each operation
