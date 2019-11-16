@@ -44,34 +44,6 @@ SEARCH_SPACE = OrderedDict([
                  1])
 ])
 
-CANDIDATE_BLOCKS2 = ["ShuffleV2_A", "ShuffleV2_B", "MobileV3_RE",
-                    "MobileV3_Hswish", "Skip"]
-# "ShuffleV2_A",
-SEARCH_SPACE2 = OrderedDict([
-    #### table 1. input shapes of 6 searched layers (considering with strides)
-    # Note: the second and third dimentions are recommended (will not be used in training) and written just for debagging
-    ("input_shape", [(32, 32, 32),
-                     (32, 16, 16),
-                     (32, 16, 16),
-                     (64, 8, 8),
-                     (64, 8, 8),
-                     (128, 4, 4)]),
-    # table 1. filter numbers over the 6 layers
-    ("channel_size", [32,
-                      32,
-                      64,
-                      64,
-                      128,
-                      128]),
-    # table 1. strides over the 6 layers
-    ("strides", [2,
-                 1,
-                 2,
-                 1,
-                 2,
-                 1])
-])
-
 CANDIDATE_BLOCKS3 = ["ir_k3_e1", "ir_k3_s2", "ir_k3_e3",
                     "ir_k3_e6", "ir_k5_e1", "ir_k5_s2",
                     "ir_k5_e3", "ir_k5_e6", "skip"]
@@ -80,24 +52,24 @@ SEARCH_SPACE3 = OrderedDict([
     #### table 1. input shapes of 22 searched layers (considering with strides)
     # Note: the second and third dimentions are recommended (will not be used in training) and written just for debagging
     ("input_shape", [(32, 32, 32),
-                     (32, 16, 16),
-                     (32, 16, 16),
-                     (64, 8, 8),
-                     (64, 8, 8),
+                     (32, 16, 16),(32, 16, 16),(32, 16, 16),(32, 16, 16),
+                     (32, 16, 16),(64, 8, 8),(64, 8, 8),(64, 8, 8),
+                     (64, 8, 8),(64, 8, 8),(64, 8, 8),(64, 8, 8),
+                     (64, 8, 8),(128, 4, 4),(128, 4, 4),(128, 4, 4),
                      (128, 4, 4)]),
     # table 1. filter numbers over the 22 layers
     ("channel_size", [32,
-                      32,
-                      64,
-                      64,
-                      128,
+                      32,32,32,32,
+                      64,64,64,64,
+                      64,64,64,64,
+                      128,128,128,128,
                       128]),
     # table 1. strides over the 22 layers
     ("strides", [2,
-                 1,
-                 2,
-                 1,
-                 2,
+                 1,1,1,1,
+                 2,1,1,1,
+                 1,1,1,1,
+                 2,1,1,1,
                  1])
 ])
 
