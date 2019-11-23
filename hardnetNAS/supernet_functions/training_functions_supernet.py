@@ -44,7 +44,7 @@ class TrainerSupernet:
         # firstly, train weights only
         for epoch in range(self.train_thetas_from_the_epoch):
             # self.writer.add_scalar('learning_rate/weights', self.w_optimizer.param_groups[0]['lr'], epoch)
-            self.logger.info("Prepare trainla %d" % (epoch))
+            self.logger.info("Prepare train  %d" % (epoch))
             self._training_step(model, train_w_loader, self.w_optimizer)
             self.w_scheduler.step()
 
@@ -63,19 +63,22 @@ class TrainerSupernet:
             # pdb.set_trace()
             current_score = acc + 1/np.abs(lat-self.target_latency)
             if acc>best_top1 or lat < best_lat or current_score>score:
-                best_top1 = acc
-                best_lat = lat
-                score = current_score
-                self.logger.info("Best top1 acc by now. Save model")
+                if acc > best_top1:
+                    best_top1 = acc
+                if lat < best_lat:
+                    best_lat = lat
+                if current_score>score:
+                    score = current_score
+                self.logger.info("Best top1 score by now. Save model")
                 save(model, self.path_to_save_model+"score%.3f_acc%.3f_lat%.3f.pth"%(score,acc,lat))
 
             self.temperature = self.temperature * self.exp_anneal_rate
-            train_w_loader = dataloader.create_loaders(load_random_triplets=False,
-                                                       batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                       n_triplets=50000)
-            train_thetas_loader = dataloader.create_loaders(load_random_triplets=False,
-                                                            batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                            n_triplets=50000)
+            # train_w_loader = dataloader.create_loaders(load_random_triplets=False,
+            #                                            batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
+            #                                            n_triplets=300000)
+            # train_thetas_loader = dataloader.create_loaders(load_random_triplets=False,
+            #                                                 batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
+            #                                                 n_triplets=100000)
 
     def get_sample_latency(self, model):
         parameters = []
@@ -96,12 +99,13 @@ class TrainerSupernet:
             optimizer.zero_grad()
             latency_to_accumulate = Variable(torch.Tensor([[0.0]]), requires_grad=True).cuda()
             outs_Y, latency_to_accumulate, soft1, hard1 = model(Y, self.temperature, latency_to_accumulate)
-            outs_X, latency_to_accumulate, soft2, hard2 = model(X, self.temperature, latency_to_accumulate)
+            outs_X, _, soft2, hard2 = model(X, self.temperature, latency_to_accumulate)
             soft_latency = (soft1 + soft2) / 2
             hard_latency = (hard1 + hard2) / 2
-
+            # import pdb
+            # pdb.set_trace()
             # latency_to_accumulate/2 因为是用了两次
-            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate / 2, soft_latency, self.target_latency)
+            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate , soft_latency, self.target_latency)
             loss.backward()
             optimizer.step()
 
@@ -126,6 +130,9 @@ class TrainerSupernet:
                 outs_Y, latency_to_accumulate, _, hard1 = model(Y, self.temperature, latency_to_accumulate)
                 outs_X, latency_to_accumulate, _, hard2 = model(X, self.temperature, latency_to_accumulate)
                 latency += (hard1+hard2)/2
+                # import pdb
+                # pdb.set_trace()
+                # import matplotlib.pyplot as plt;plt.imshow(X[0,0,:,:].cpu().numpy());plt.show()
                 for i in range(len(outs_X)):
                     if label[i] == 0:
                         continue

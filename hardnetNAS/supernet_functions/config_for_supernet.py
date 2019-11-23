@@ -32,7 +32,7 @@ CONFIG_SUPERNET = {
     },
     'train_settings' : {
         'cnt_epochs' : 180, # 90
-        'train_thetas_from_the_epoch' : 20,
+        'train_thetas_from_the_epoch' : 1,
         'print_freq' : 100,
         'path_to_save_model' : './supernet_functions/logs/',
         # for Gumbel Softmax

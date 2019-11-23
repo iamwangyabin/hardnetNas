@@ -79,6 +79,9 @@ class FBNet_Stochastic_SuperNet(nn.Module):
         # pdb.set_trace()
         # print('latency_to_accumulate:\t'+str(latency_to_accumulate.item())+'\tsoft:\t'+str(soft.item()) + '\thard:\t' + str(hard))
         y = self.last_stages(y)
+        # import pdb
+        # pdb.set_trace()
+        y = y / torch.norm(y, p=2, dim=-1, keepdim=True)
         return y, latency_to_accumulate, soft, hard
 
 
@@ -93,11 +96,12 @@ class SupernetLoss(nn.Module):
     def forward(self, outs, targets, latency, sample_latency, target):
         ce = self.weight_criterion_hardnet(outs, targets)
 
-        if (sample_latency - target) > 0:
-            # lat = torch.log(latency ** self.beta) * (torch.log(torch.tensor(sample_latency-20+1))**0.5)
-            lat = torch.log(latency ** self.beta) * ((sample_latency*0.9 - target) / target) ** 1.07
-        else:
-            lat = torch.log(latency ** self.beta) * 0
+        lat = torch.clamp(torch.log(latency ** self.beta) * (torch.log(((sample_latency - target) / target) ** 2) + 5)*0.2,0)
+        # if (torch.log(((sample_latency - target) / target)**2)+5) > 0:
+        #     # lat = torch.log(latency ** self.beta) * (torch.log(torch.tensor(sample_latency-20+1))**0.5)
+        #     lat = torch.log(latency ** self.beta) * (torch.log(((sample_latency - target) / target)**2)+5)
+        # else:
+        #     lat = torch.log(latency ** self.beta) * 0
         # lat = torch.log(latency ** self.beta)
         # import pdb
         # pdb.set_trace()
