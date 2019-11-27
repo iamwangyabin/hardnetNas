@@ -7,6 +7,7 @@ from supernet_functions.config_for_supernet import CONFIG_SUPERNET
 from general_functions.EvalMetrics import ErrorRateAt95Recall
 import general_functions.dataloader as dataloader
 
+
 class TrainerSupernet:
     def __init__(self, criterion, w_optimizer, theta_optimizer, w_scheduler, logger, writer, lookup_table):
         self.logger = logger
@@ -37,7 +38,7 @@ class TrainerSupernet:
 
     def train_loop(self, train_w_loader, train_thetas_loader, test_loader, model):
 
-        best_top1 = 0.0
+        best_acc = 9999.9
         best_lat = 9999.9
         score = 0
 
@@ -58,19 +59,19 @@ class TrainerSupernet:
             self.logger.info("Train Thetas for epoch %d" % (epoch))
             self._training_step(model, train_thetas_loader, self.theta_optimizer)
 
-            acc,lat = self._validate(model, test_loader)
+            acc, lat = self._validate(model, test_loader)
             # import pdb
             # pdb.set_trace()
-            current_score = acc + 1/np.abs(lat-self.target_latency)
-            if acc>best_top1 or lat < best_lat or current_score>score:
-                if acc > best_top1:
-                    best_top1 = acc
+            current_score = acc + np.abs(lat - self.target_latency)
+            if acc < best_acc or lat < best_lat or current_score < score:
+                if acc < best_acc:
+                    best_acc = acc
                 if lat < best_lat:
                     best_lat = lat
-                if current_score>score:
+                if current_score < score:
                     score = current_score
                 self.logger.info("Best top1 score by now. Save model")
-                save(model, self.path_to_save_model+"score%.3f_acc%.3f_lat%.3f.pth"%(score,acc,lat))
+                save(model, self.path_to_save_model + "score%.3f_acc%.8f_lat%.3f.pth" % (score, acc, lat))
 
             self.temperature = self.temperature * self.exp_anneal_rate
             # train_w_loader = dataloader.create_loaders(load_random_triplets=False,
@@ -105,7 +106,7 @@ class TrainerSupernet:
             # import pdb
             # pdb.set_trace()
             # latency_to_accumulate/2 因为是用了两次
-            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate , soft_latency, self.target_latency)
+            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate, soft_latency, self.target_latency)
             loss.backward()
             optimizer.step()
 
@@ -114,14 +115,15 @@ class TrainerSupernet:
             epochCe += ce
             if (step % self.print_freq == 0):
                 self.logger.info('Step:%3d Loss:%.3f,Lat:%.3f,Ce:%.3f -- latency:%.4f, soft:%.4f, hard:%.4f' % (
-                step, loss, lat, ce, latency_to_accumulate.item(), soft_latency.item(), hard_latency))
+                    step, loss, lat, ce, latency_to_accumulate.item(), soft_latency.item(), hard_latency))
 
         self.logger.info("EPOCH Loss:%f,\tLat:%f,\tCe:%f" % (epochLoss / step, epochLat / step, epochCe / step))
 
     def _validate(self, model, loader):
         model.eval()
-        accnum = 0
+        # accnum = 0
         latency = 0
+        labels, distances = [], []
         self.logger.info("Start Validate")
         with torch.no_grad():
             for step, (X, Y, label) in enumerate(loader):
@@ -129,21 +131,30 @@ class TrainerSupernet:
                 latency_to_accumulate = torch.Tensor([[0.0]]).cuda()
                 outs_Y, latency_to_accumulate, _, hard1 = model(Y, self.temperature, latency_to_accumulate)
                 outs_X, latency_to_accumulate, _, hard2 = model(X, self.temperature, latency_to_accumulate)
-                latency += (hard1+hard2)/2
+                latency += (hard1 + hard2) / 2
+                dists = torch.sqrt(torch.sum((outs_Y - outs_X) ** 2, 1))  # euclidean distance
+                distances.append(dists.data.cpu().numpy().reshape(-1, 1))
+                ll = label.data.cpu().numpy().reshape(-1, 1)
+                labels.append(ll)
                 # import pdb
                 # pdb.set_trace()
                 # import matplotlib.pyplot as plt;plt.imshow(X[0,0,:,:].cpu().numpy());plt.show()
-                for i in range(len(outs_X)):
-                    if label[i] == 0:
-                        continue
-                    else:
-                        dis = torch.sum((outs_Y - outs_X[i]) ** 2, 1)
-                        top1value, top1 = torch.kthvalue(dis, 1)
-                        top2value, top2 = torch.kthvalue(dis, 2)
-                        if top1 == i and top2value * 0.8 > top1value:
-                            accnum += 1
+                # for i in range(len(outs_X)):
+                #     if label[i] == 0:
+                #         continue
+                #     else:
+                #         dis = torch.sum((outs_Y - outs_X[i]) ** 2, 1)
+                #         top1value, top1 = torch.kthvalue(dis, 1)
+                #         top2value, top2 = torch.kthvalue(dis, 2)
+                #         if top1 == i and top2value * 0.8 > top1value:
+                #             accnum += 1
+        num_tests = loader.dataset.matches.size(0)
+        labels = np.vstack(labels).reshape(num_tests)
+        distances = np.vstack(distances).reshape(num_tests)
 
-        accuracy = accnum / 50000
+        fpr95 = ErrorRateAt95Recall(labels, 1.0 / (distances + 1e-8))
+
+        # accuracy = accnum / 50000
         latency = latency / step
-        self.logger.info("accuracy:%f,\tsample_latency:%f" % (accuracy, latency))
-        return accuracy, latency
+        self.logger.info("accuracy:%.8f,\tsample_latency:%f" % (fpr95, latency))
+        return fpr95, latency

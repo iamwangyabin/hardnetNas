@@ -14,7 +14,7 @@ CONFIG_SUPERNET = {
         'path_to_tensorboard_logs' : './supernet_functions/logs/tb'
     },
     'dataloading' : {
-        'batch_size' : 128 ,
+        'batch_size' : 512,
         'w_share_in_train' : 0.8,
     },
     'optimizer' : {
@@ -39,5 +39,5 @@ CONFIG_SUPERNET = {
         'init_temperature' : 5.0,
         'exp_anneal_rate' : np.exp(-0.045)
     },
-    'target_latency' : 20
+    'target_latency' : 15
 }

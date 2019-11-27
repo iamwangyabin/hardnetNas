@@ -1,0 +1,6 @@
+11/27 08:23:09 PM | Prepare train  0
+11/27 08:23:12 PM | Step:  0 Loss:0.898,Lat:3.345,Ce:1.147 -- latency:61.1679, soft:68.6126, hard:45.5385
+11/27 08:24:15 PM | Step:100 Loss:0.928,Lat:3.538,Ce:1.103 -- latency:61.6941, soft:78.6588, hard:44.2454
+11/27 08:25:19 PM | Step:200 Loss:0.840,Lat:3.112,Ce:1.089 -- latency:59.2199, soft:59.3796, hard:54.0219
+11/27 08:26:22 PM | Step:300 Loss:0.914,Lat:3.534,Ce:1.035 -- latency:62.6500, soft:77.6457, hard:65.1899
+11/27 08:27:26 PM | Step:400 Loss:0.896,Lat:3.455,Ce:1.024 -- latency:59.1959, soft:75.8697, hard:67.0221
