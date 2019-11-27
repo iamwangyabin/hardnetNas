@@ -13,6 +13,7 @@ def ErrorRateAt95Recall(labels, scores):
     # (np.argmax returns the first occurrence of a '1' in a bool array). 
     threshold_index = np.argmax(np.cumsum(labels) >= recall_point * np.sum(labels)) 
 
-    FP = np.sum(labels[:threshold_index] == 0) # Below threshold (i.e., labelled positive), but should be negative
-    TN = np.sum(labels[threshold_index:] == 0) # Above threshold (i.e., labelled negative), and should be negative
+    FP = np.sum(labels[:threshold_index] == 0) # 实际为负例但被分类器划分为正例的实例数
+    TN = np.sum(labels[threshold_index:] == 0) # 实际为负例且被分类器划分为负例的实例数
+
     return float(FP) / float(FP + TN)

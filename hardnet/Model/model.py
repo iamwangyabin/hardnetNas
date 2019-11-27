@@ -1,6 +1,5 @@
 
 
-
 class HardNet(nn.Module):
     """HardNet model definition
     """

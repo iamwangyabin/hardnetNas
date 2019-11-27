@@ -106,7 +106,7 @@ def loss_HardNet(anchor, positive, anchor_swap = False, anchor_ave = False,\
         if anchor_swap:
             min_neg2 = torch.min(dist_without_min_on_diag,0)[0]
             min_neg = torch.min(min_neg,min_neg2)
-        else:
+        if False:
             dist_matrix_a = distance_matrix_vector(anchor, anchor)+ eps
             dist_matrix_p = distance_matrix_vector(positive,positive)+eps
             dist_without_min_on_diag_a = dist_matrix_a+eye*10

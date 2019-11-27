@@ -91,7 +91,7 @@ parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('--epochs', type=int, default=10, metavar='E',
+parser.add_argument('--epochs', type=int, default=100, metavar='E',
                     help='number of epochs to train (default: 10)')
 parser.add_argument('--anchorswap', type=str2bool, default=True,
                     help='turns on anchor swap')
@@ -99,7 +99,7 @@ parser.add_argument('--batch-size', type=int, default=512, metavar='BS',
                     help='input batch size for training (default: 1024)')
 parser.add_argument('--test-batch-size', type=int, default=512, metavar='BST',
                     help='input batch size for testing (default: 1024)')
-parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',
+parser.add_argument('--n-triplets', type=int, default=5000000, metavar='N',   #5000000
                     help='how many triplets will generate from the dataset')
 parser.add_argument('--margin', type=float, default=1.0, metavar='MARGIN',
                     help='the margin value for the triplet loss function (default: 1.0')
@@ -109,7 +109,7 @@ parser.add_argument('--freq', type=float, default=10.0,
                     help='frequency for cyclic learning rate')
 parser.add_argument('--alpha', type=float, default=1.0, metavar='ALPHA',
                     help='gor parameter')
-parser.add_argument('--lr', type=float, default=10.0, metavar='LR',
+parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
                     help='learning rate (default: 10.0. Yes, ten is not typo)')
 parser.add_argument('--fliprot', type=str2bool, default=True,
                     help='turns on flip and 90deg rotation augmentation')
@@ -316,7 +316,7 @@ class HardNet(nn.Module):
 
 def weights_init(m):
     if isinstance(m, nn.Conv2d):
-        nn.init.orthogonal(m.weight.data, gain=0.6)
+        nn.init.orthogonal_(m.weight.data, gain=0.6)
         try:
             nn.init.constant(m.bias.data, 0.01)
         except:
@@ -451,20 +451,19 @@ def test(test_loader, model, epoch, logger, logger_test_name):
 
         if args.cuda:
             data_a, data_p = data_a.cuda(), data_p.cuda()
+        with torch.no_grad():
+            data_a, data_p, label = Variable(data_a), Variable(data_p), Variable(label)
+            out_a = model(data_a)
+            out_p = model(data_p)
+            dists = torch.sqrt(torch.sum((out_a - out_p) ** 2, 1))  # euclidean distance
+            distances.append(dists.data.cpu().numpy().reshape(-1,1))
+            ll = label.data.cpu().numpy().reshape(-1, 1)
+            labels.append(ll)
 
-        data_a, data_p, label = Variable(data_a, volatile=True), \
-                                Variable(data_p, volatile=True), Variable(label)
-        out_a = model(data_a)
-        out_p = model(data_p)
-        dists = torch.sqrt(torch.sum((out_a - out_p) ** 2, 1))  # euclidean distance
-        distances.append(dists.data.cpu().numpy().reshape(-1,1))
-        ll = label.data.cpu().numpy().reshape(-1, 1)
-        labels.append(ll)
-
-        if batch_idx % args.log_interval == 0:
-            pbar.set_description(logger_test_name+' Test Epoch: {} [{}/{} ({:.0f}%)]'.format(
-                epoch, batch_idx * len(data_a), len(test_loader.dataset),
-                       100. * batch_idx / len(test_loader)))
+            if batch_idx % args.log_interval == 0:
+                pbar.set_description(logger_test_name+' Test Epoch: {} [{}/{} ({:.0f}%)]'.format(
+                    epoch, batch_idx * len(data_a), len(test_loader.dataset),
+                           100. * batch_idx / len(test_loader)))
 
     num_tests = test_loader.dataset.matches.size(0)
     labels = np.vstack(labels).reshape(num_tests)
