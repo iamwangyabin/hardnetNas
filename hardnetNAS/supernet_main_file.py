@@ -47,12 +47,14 @@ def train_supernet():
 
     #### DataLoading
     train_w_loader = dataloader.create_loaders(load_random_triplets=False,
-                                               batchsize=CONFIG_SUPERNET['dataloading']['batch_size'], n_triplets=5000000)
+                                               batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
+                                               n_triplets=5000000)
     train_thetas_loader = dataloader.create_loaders(load_random_triplets=False,
                                                     batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
                                                     n_triplets=5000000)
     test_loader = dataloader.create_test_loaders(load_random_triplets=False,
-                                                 batchsize=CONFIG_SUPERNET['dataloading']['batch_size'], n_triplets=50)
+                                                 batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
+                                                 n_triplets=50)
 
     #### Model
     model = FBNet_Stochastic_SuperNet(lookup_table).cuda()

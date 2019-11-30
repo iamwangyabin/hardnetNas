@@ -7,14 +7,14 @@ CONFIG_SUPERNET = {
     'lookup_table' : {
         'create_from_scratch' : False,
         'path_to_lookup_table' : './supernet_functions/lookup_table.txt',
-        'number_of_runs' : 10 # each operation run number_of_runs times and then we will take average
+        'number_of_runs' : 10 
     },
     'logging' : {
         'path_to_log_file' : './supernet_functions/logs/logger/',
         'path_to_tensorboard_logs' : './supernet_functions/logs/tb'
     },
     'dataloading' : {
-        'batch_size' : 512,
+        'batch_size' : 128,
         'w_share_in_train' : 0.8,
     },
     'optimizer' : {
@@ -31,13 +31,14 @@ CONFIG_SUPERNET = {
         'beta' : 0.6
     },
     'train_settings' : {
-        'cnt_epochs' : 180, # 90
-        'train_thetas_from_the_epoch' : 1,
+        'cnt_epochs' : 50,
+        'train_thetas_from_the_epoch' : 5,
         'print_freq' : 100,
         'path_to_save_model' : './supernet_functions/logs/',
         # for Gumbel Softmax
         'init_temperature' : 5.0,
         'exp_anneal_rate' : np.exp(-0.045)
     },
-    'target_latency' : 15
+    'target_latency' : 15,
+    'train_tuplenums' : 1000000
 }
