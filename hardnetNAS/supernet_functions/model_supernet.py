@@ -29,7 +29,7 @@ class MixedOperation(nn.Module):
         latency_to_accumulate = latency_to_accumulate + latency
         # import pdb
         # pdb.set_trace()
-        nmsprobs = self.softnms(soft_mask_variables.unsqueeze(0).unsqueeze(0), 9, 50)
+        nmsprobs = self.softnms(soft_mask_variables.unsqueeze(0).unsqueeze(0), 17, 50)
         soft_sample_latency = sum(m * lat for m, lat in zip(nmsprobs.squeeze(), self.latency))
         hard_sample_latency = self.latency[torch.argmax(soft_mask_variables).item()]
         # print(str(soft_sample_latency.item())+' '+str(hard_sample_latency))
@@ -98,10 +98,13 @@ class SupernetLoss(nn.Module):
 
         lat = torch.clamp(torch.log(latency ** self.beta) * (torch.log(((sample_latency - target) / target) ** 2) + 5)*0.2,0)
         # if (torch.log(((sample_latency - target) / target)**2)+5) > 0:
+        #     # lat = torch.log(latency ** self.beta) * (torch.log(torch.tensor(sample_latency-20+1))**0.5)
         #     lat = torch.log(latency ** self.beta) * (torch.log(((sample_latency - target) / target)**2)+5)
         # else:
         #     lat = torch.log(latency ** self.beta) * 0
         # lat = torch.log(latency ** self.beta)
+        # import pdb
+        # pdb.set_trace()
         # loss = self.alpha * ce * lat
         loss = self.alpha * (ce + lat)
         return loss, ce, lat

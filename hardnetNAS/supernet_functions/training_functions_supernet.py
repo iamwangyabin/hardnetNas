@@ -25,8 +25,6 @@ class TrainerSupernet:
         self.print_freq = CONFIG_SUPERNET['train_settings']['print_freq']
         self.path_to_save_model = CONFIG_SUPERNET['train_settings']['path_to_save_model']
 
-        self.batchnum = CONFIG_SUPERNET['train_tuplenums']/CONFIG_SUPERNET['dataloading']['batch_size']
-
         self.target_latency = CONFIG_SUPERNET['target_latency']
 
         self.lookup_table = lookup_table
@@ -42,13 +40,13 @@ class TrainerSupernet:
 
         best_acc = 9999.9
         best_lat = 9999.9
-        score = 9999.9
+        score = 99999.9
 
         # firstly, train weights only
         for epoch in range(self.train_thetas_from_the_epoch):
             # self.writer.add_scalar('learning_rate/weights', self.w_optimizer.param_groups[0]['lr'], epoch)
             self.logger.info("Prepare train  %d" % (epoch))
-            self._training_step(model, train_w_loader, self.w_optimizer,self.batchnum)
+            self._training_step(model, train_w_loader, self.w_optimizer)
             self.w_scheduler.step()
 
         for epoch in range(self.train_thetas_from_the_epoch, self.cnt_epochs):
@@ -56,12 +54,14 @@ class TrainerSupernet:
             # self.writer.add_scalar('learning_rate/theta', self.theta_optimizer.param_groups[0]['lr'], epoch)
             self.logger.info("Epoch %d" % (epoch))
             self.logger.info("Train Weights for epoch %d" % (epoch))
-            self._training_step(model, train_w_loader, self.w_optimizer, self.batchnum)
+            self._training_step(model, train_w_loader, self.w_optimizer)
             self.w_scheduler.step()
-
             self.logger.info("Train Thetas for epoch %d" % (epoch))
-            self._training_step(model, train_thetas_loader, self.theta_optimizer, self.batchnum*0.3)
+            self._training_step(model, train_thetas_loader, self.theta_optimizer)
+
             acc, lat = self._validate(model, test_loader)
+            # import pdb
+            # pdb.set_trace()
             current_score = acc + np.abs(lat - self.target_latency)
             if acc < best_acc or lat < best_lat or current_score < score:
                 if acc < best_acc:
@@ -84,27 +84,22 @@ class TrainerSupernet:
             sample_latency += self.latency_table[i][parameters[i]]
         return sample_latency
 
-    def _training_step(self, model, loader, optimizer, batchnums):
+    def _training_step(self, model, loader, optimizer):
         model = model.train()
         epochLoss = 0
         epochLat = 0
         epochCe = 0
-
         for step, (X, Y) in enumerate(loader):
-            if step > batchnums:
-                break
-
             X, Y = X.cuda(non_blocking=True), Y.cuda(non_blocking=True)
             optimizer.zero_grad()
             latency_to_accumulate = Variable(torch.Tensor([[0.0]]), requires_grad=True).cuda()
             outs_X, latency_to_accumulate, soft1, hard1 = model(X, self.temperature, latency_to_accumulate)
             with torch.no_grad():
-                outs_Y, _, soft2, hard2 = model(Y, self.temperature, latency_to_accumulate)
-            soft_latency = soft1
-            hard_latency = hard1
+                outs_Y, _, _, _ = model(Y, self.temperature, latency_to_accumulate)
+
             # import pdb
             # pdb.set_trace()
-            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate, soft_latency, self.target_latency)
+            loss, ce, lat = self.criterion(outs_X, outs_Y, latency_to_accumulate, soft1, self.target_latency)
             loss.backward()
             optimizer.step()
 
@@ -113,12 +108,13 @@ class TrainerSupernet:
             epochCe += ce
             if (step % self.print_freq == 0):
                 self.logger.info('Step:%3d Loss:%.3f,Lat:%.3f,Ce:%.3f -- latency:%.4f, soft:%.4f, hard:%.4f' % (
-                    step, loss, lat, ce, latency_to_accumulate.item(), soft_latency.item(), hard_latency))
+                    step, loss, lat, ce, latency_to_accumulate.item(), soft1.item(), hard1))
 
-        self.logger.info("EPOCH Loss:%f,\tLat:%f,\tCe:%f" % (epochLoss / self.batchnum, epochLat / self.batchnum, epochCe / self.batchnum))
+        self.logger.info("EPOCH Loss:%f,\tLat:%f,\tCe:%f" % (epochLoss / step, epochLat / step, epochCe / step))
 
     def _validate(self, model, loader):
         model.eval()
+        # accnum = 0
         latency = 0
         labels, distances = [], []
         self.logger.info("Start Validate")

@@ -15,7 +15,7 @@ from fbnet_building_blocks.fbnet_modeldef import MODEL_ARCH
 
 import general_functions.dataloader as dataloader
 
-lookup_table = LookUpTable(calulate_latency=True)
+# lookup_table = LookUpTable(calulate_latency=True)
 
 parser = argparse.ArgumentParser("action")
 parser.add_argument('--train_or_sample', type=str, default='', \
@@ -47,14 +47,12 @@ def train_supernet():
 
     #### DataLoading
     train_w_loader = dataloader.create_loaders(load_random_triplets=False,
-                                               batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                               n_triplets=5000000)
+                                               batchsize=CONFIG_SUPERNET['dataloading']['batch_size'], n_triplets=3000)
     train_thetas_loader = dataloader.create_loaders(load_random_triplets=False,
                                                     batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                    n_triplets=5000000)
+                                                    n_triplets=1000)
     test_loader = dataloader.create_test_loaders(load_random_triplets=False,
-                                                 batchsize=CONFIG_SUPERNET['dataloading']['batch_size'],
-                                                 n_triplets=50)
+                                                 batchsize=CONFIG_SUPERNET['dataloading']['batch_size'], n_triplets=50)
 
     #### Model
     model = FBNet_Stochastic_SuperNet(lookup_table).cuda()
